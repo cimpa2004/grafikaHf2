@@ -114,27 +114,44 @@ public:
 	}
 
 	vec2 ScreenToWorld(float x, float y, int windowWidth, int windowHeight) {
-		// Transform screen coordinates to normalized device coordinates (NDC)
 		float ndcX = 2.0f * x / windowWidth - 1.0f;
 		float ndcY = 1.0f - 2.0f * y / windowHeight;
 
-		// Transform NDC coordinates to world coordinates using the inverse view matrix
 		vec4 ndcCoords = vec4(ndcX, ndcY, 0.0f, 1.0f);
 		vec4 worldCoords = ndcCoords * Vinv();
 
-		// Extract the world coordinates from the resulting vector
 		vec2 worldPos = vec2(worldCoords.x, worldCoords.y);
 
 		return worldPos;
 	}
 
 	void Zoom(float zoom) {
-		wCx *= zoom;
-		wCy *= zoom;
-		wWx *= zoom;
-		wWy *= zoom;
+		float converted = 1;
+		if (zoom == 1){
+			return;
+		}
+		else if (zoom < 1) {
+			converted = 0.9f;
+		}
+		else if ( zoom > 1) {
+			converted = 1.1f;
+		}
+		wCx *= converted;
+		wCy *= converted;
+		wWx *= converted;
+		wWy *= converted;
 		
 	}
+
+	void PanLeft() {
+		wCx -= 1.0f;
+	}
+
+	void PanRight() {
+		wCx += 1.0f;
+	}
+
+
 
 };
 
@@ -185,6 +202,9 @@ public:
 		vec4 wVertex = vec4(cX, cY, 0, 1) * camera.Pinv() * camera.Vinv();
 		wCtrlPoints.push_back(wVertex);
 	}
+	
+
+
 
 	// Returns the selected control point or -1
 	int PickControlPoint(float cX, float cY) {
@@ -278,6 +298,56 @@ public:
 	}
 };
 
+class CatmullRom: public Curve{
+private:
+	std::vector<float> ts;
+	std::vector<vec3> cps; 
+	vec3 Hermite(vec3 p0, vec3 v0, float t0, vec3 p1, vec3 v1, float t1, float t) {
+		float t_ = (t - t0) / (t1 - t0);
+		float t2 = t_ * t_;
+		float t3 = t2 * t_;
+
+		vec3 a0 = p0;
+		vec3 a1 = v0;
+		vec3 a2 = (3.0f * (p1 - p0) / ((t1 - t0) * (t1 - t0))) - (2.0f * v0 + v1) / (t1 - t0);
+		vec3 a3 = (2.0f * (p0 - p1) / ((t1 - t0) * (t1 - t0) * (t1 - t0))) + (v0 + v1) / ((t1 - t0) * (t1 - t0));
+
+		return a0 + a1 * t_ + a2 * t2 + a3 * t3;
+	}
+
+	vec3 CalculateVelocity(int i) {
+		vec4 v0, v1;
+
+		if (i > 0)
+			v0 = (wCtrlPoints[i] - wCtrlPoints[i - 1]) / (ts[i] - ts[i - 1]);
+		else
+			v0 = (wCtrlPoints[i + 1] - wCtrlPoints[i]) / (ts[i + 1] - ts[i]);
+
+		if (i < wCtrlPoints.size() - 1)
+			v1 = (wCtrlPoints[i + 1] - wCtrlPoints[i]) / (ts[i + 1] - ts[i]);
+		else
+			v1 = (wCtrlPoints[i] - wCtrlPoints[i - 1]) / (ts[i] - ts[i - 1]);
+
+		return vec3(((v0 + v1) * 0.5f).x, ((v0 + v1) * 0.5f).y, ((v0 + v1) * 0.5f).z);
+	}
+
+public: 
+	void AddControlPoint(float cX, float cY) {
+		ts.push_back((float)wCtrlPoints.size());
+		cps.push_back(vec3(cX, cY, 1));
+		Curve::AddControlPoint(cX, cY);
+	}
+
+	/*virtual vec4 r(float t) override {
+		
+	}*/
+
+	
+
+
+};
+
+
 Curve* curve;
 
 
@@ -311,22 +381,22 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 		curve = new BezierCurve();
 	}
 	else if (key == 'c') {
-
+		curve = new CatmullRom();
 	}
 	else if (key == 'Z') {
-		currentZoom += 0.1;
+		currentZoom = 2;
 		camera.Zoom(currentZoom);
 	}
 	else if (key == 'z') {
-		currentZoom -= 0.1;
+		currentZoom = 0;
 		camera.Zoom(currentZoom);
 
 	}
 	else if (key == 'P') {
-
+		camera.PanRight();
 	}
 	else if (key == 'p') {
-
+		camera.PanLeft();
 	}
 	else if (key == 'T') {
 
