@@ -15,24 +15,12 @@ private:
 		return a0 + a1 * t1_ + a2 * t2 + a3 * t3;
 	}
 
-	vec3 CalculateVelocity(int i) {
-		vec3 v0, v1 ,vtension;
-
-		if (i > 0 || i > cps.size() - 1)
-			return vec3(0, 0, 0);
-		else {
-			v0 = ((cps[i + 1] - cps[i]) / (ts[i + 1] - ts[i]) );
-			v1 = (cps[i] - cps[i + 1]) / (ts[i] - ts[i + 1]);
-			vtension = 0.5 * (1 - tension);
-		}
-			
-
-		return vtension*(v0+v1);
-	}
-
 
 
 public:
+	float tStart() { return ts[0]; }
+	float tEnd() { return ts[wCtrlPoints.size() -1 ]; }
+
 	void AddControlPoint(float cX, float cY) {
 		ts.push_back((float)wCtrlPoints.size());
 		cps.push_back(vec3(cX, cY, 1));
@@ -41,18 +29,34 @@ public:
 
 	virtual vec4 r(float t) override {
 		for (int i = 0; i < cps.size() - 1; i++) {
-			if (ts[i] <= t && ts[i + 1] >= t) {
+			if (ts[i] <= t &&  t <= ts[i + 1]) {
+				int startI = i; int endI = i + 1;
 				vec3 v0; vec3 v1;
-				v0 = CalculateVelocity(i);
-				v1 = CalculateVelocity(i + 1);
-				vec3 temp = Hermite(cps[i], v0, ts[i], cps[i + 1], v1, ts[i + 1], t);
+
+				if (startI == 0) {
+					v0 = vec3(0, 0, 0);
+					printf("AAAAAAAAAAAAAAAAAAAAAAAA   %d \n", startI);
+				}
+				else {
+					v0 = 0.5 * (1 - tension) * (((cps[startI + 1] - cps[startI]) /
+						(ts[startI + 1] - ts[startI])) + (cps[startI] - cps[startI - 1]) / (ts[startI] - ts[startI - 1]));
+				}
+					
+				if (endI == cps.size() -1 ) {
+					v1 = vec3(0, 0, 0);
+					printf("BBBBBBBBBBBBBBBBBBBBBBBBBB  %d \n", endI);
+					
+				}
+				else {
+					v1 = 0.5 * (1 - tension) * (((cps[endI + 1] - cps[endI]) /
+						(ts[endI + 1] - ts[endI])) + (cps[endI] - cps[endI - 1]) / (ts[endI] - ts[endI - 1]));
+				}
+
+				vec3 temp = Hermite(cps[startI], v0, ts[startI], cps[endI], v1, ts[endI], t);
 				return vec4(temp.x, temp.y, temp.z, 1);
 			}
 		}
 		return vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	}
-
-
-
 
 };
