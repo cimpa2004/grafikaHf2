@@ -62,9 +62,7 @@ const char* fragmentSource = R"(
 	}
 )";
 
-enum Mode {
-	Lagrange, Bezier, CatmullCom
-};
+
 
 
 // 2D camera
@@ -119,6 +117,9 @@ public:
 
 		vec4 ndcCoords = vec4(ndcX, ndcY, 0.0f, 1.0f);
 		vec4 worldCoords = ndcCoords * Vinv();
+
+		worldCoords.x -= wCx;
+		worldCoords.y -= wCy;
 
 		vec2 worldPos = vec2(worldCoords.x, worldCoords.y);
 
