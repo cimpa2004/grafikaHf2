@@ -339,10 +339,12 @@ public:
 			ts.push_back(newKnot);
 		}
 		else {
-			ts.push_back(0.0f); 
+			ts.push_back(0.0f);
 		}
 		Curve::AddControlPoint(cX, cY);
 	}
+
+
 
 
 
@@ -353,7 +355,7 @@ public:
 				vec4 v0; vec4 v1;
 
 				if (startI == 0 || startI == wCP.size() - 1) {
-					v0 = vec4(0, 0, 0, 0);
+					v0 = vec4(0, 0, 0, 1);
 				}
 				else {
 					v0 = 0.5 * (1 - tension) * (((wCP[startI + 1] - wCP[startI]) /
@@ -361,7 +363,7 @@ public:
 				}
 
 				if (endI == 0 || endI == wCP.size() - 1) {
-					v1 = vec4(0, 0, 0, 0);
+					v1 = vec4(0, 0, 0, 1);
 				}
 				else {
 					v1 = 0.5 * (1 - tension) * (((wCP[endI + 1] - wCP[endI]) /
