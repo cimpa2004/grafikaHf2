@@ -72,42 +72,42 @@ const char* fragmentSource = R"(
 
 // 2D camera
 struct Camera {
-	float wCx, wCy;	// center in world coordinates
-	float wWx, wWy;	// width and height in world coordinates
+	float wCamx, wCamy;	// center in world coordinates
+	float wWidth, wHeight;	// width and height in world coordinates
 public:
 	Camera() {
-		wCx = 0; 
-		wCy = 0;
-		wWx = 30;
-		wWy = 30;
+		wCamx = 0; 
+		wCamy = 0;
+		wWidth = 30;
+		wHeight = 30;
 	}
 
-	mat4 V() { 
+	mat4 View() { 
 		return mat4(1, 0, 0, 0,
 			0, 1, 0, 0,
 			0, 0, 1, 0,
-			-wCx, -wCy, 0, 1);
+			-wCamx, -wCamy, 0, 1);
 	}
 
-	mat4 P() { 
-		return mat4(2 / wWx, 0, 0, 0,
-			0, 2 / wWy, 0, 0,
+	mat4 Projection() { 
+		return mat4(2 / wWidth, 0, 0, 0,
+			0, 2 / wHeight, 0, 0,
 			0, 0, 1, 0,
 			0, 0, 0, 1);
 	}
 
 
-	mat4 Vinv() { 
+	mat4 ViewInverz() { 
 		return mat4(1, 0, 0, 0,
 			0, 1, 0, 0,
 			0, 0, 1, 0,
-			wCx, wCy, 0, 1);
+			wCamx, wCamy, 0, 1);
 	}
 
 
-	mat4 Pinv() { 
-		return mat4(wWx / 2, 0, 0, 0,
-			0, wWy / 2, 0, 0,
+	mat4 ProjectionInverz() { 
+		return mat4(wWidth / 2, 0, 0, 0,
+			0, wHeight / 2, 0, 0,
 			0, 0, 1, 0,
 			0, 0, 0, 1);
 	}
@@ -119,40 +119,39 @@ public:
 		float ndcY = 1.0f - 2.0f * y / windowHeight;
 
 		vec4 ndcCoords = vec4(ndcX, ndcY, 0.0f, 1.0f);
-		vec4 worldCoords = ndcCoords * Vinv();
+		vec4 worldCoords = ndcCoords * ViewInverz();
 
-		worldCoords.x -= wCx;
-		worldCoords.y -= wCy;
+		worldCoords.x -= wCamx;
+		worldCoords.y -= wCamy;
 
 		vec2 worldPos = vec2(worldCoords.x, worldCoords.y);
 
 		return worldPos;
 	}
 
-	void Zoom(float zoom) {
-		float converted = 1;
-		if (zoom == 1) {
-			return;
-		}
-		else if (zoom < 1) {
-			converted = 0.9f;
-		}
-		else if (zoom > 1) {
-			converted = 1.1f;
-		}
-		wCx *= converted;
-		wCy *= converted;
-		wWx *= converted;
-		wWy *= converted;
+	
+	void ZoomOut() {
+		float t = 1.1f;
+		wCamx *= t;
+		wCamy *= t;
+		wWidth *= t;
+		wHeight *= t;
+	}
 
+	void ZoomIn() {
+		float t = 1/1.1f;
+		wCamx *= t;
+		wCamy *= t;
+		wWidth *= t;
+		wHeight *= t;
 	}
 
 	void PanLeft() {
-		wCx -= 1.0f;
+		wCamx -= 1.0f;
 	}
 
 	void PanRight() {
-		wCx += 1.0f;
+		wCamx += 1.0f;
 	}
 
 
@@ -164,13 +163,21 @@ Camera camera;
 
 GPUProgram gpuProgram; 
 const int nTesselatedVertices = 100;
-float currentZoom = 1;
 
 class Curve {
 	unsigned int vaoCurve, vboCurve;
 	unsigned int vaoCtrlPoints, vboCtrlPoints;
+
 protected:
-	std::vector<vec4> wCtrlPoints;		
+	std::vector<vec4> wCP;		
+	float distanceBetweenPoints(const vec4& p1, const vec4& p2) {
+		float dx = p2.x - p1.x;
+		float dy = p2.y - p1.y;
+		float dz = p2.z - p1.z;
+		float dw = p2.w - p1.w;
+
+		return sqrt(dx * dx + dy * dy + dz * dz + dw * dw);
+	}
 public:
 	Curve() {
 		// Curve
@@ -184,46 +191,38 @@ public:
 		glGenVertexArrays(1, &vaoCtrlPoints);
 		glBindVertexArray(vaoCtrlPoints);
 
-		glGenBuffers(1, &vboCtrlPoints); // Generate 1 vertex buffer object
+		glGenBuffers(1, &vboCtrlPoints);
 		glBindBuffer(GL_ARRAY_BUFFER, vboCtrlPoints);
-		// Enable the vertex attribute arrays
-		glEnableVertexAttribArray(0);  // attribute array 0
-		// Map attribute array 0 to the vertex data of the interleaved vbo
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), NULL); // attribute array, components/attribute, component type, normalize?, stride, offset
+		glEnableVertexAttribArray(0);  
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), NULL); 
 
 
 	}
 
-	virtual vec4 r(float t) { return wCtrlPoints[0]; }
+	virtual vec4 r(float t) { return wCP[0]; }
 	virtual float tStart() { return 0; }
 	virtual float tEnd() { return 1; }
 
 	virtual void AddControlPoint(float cX, float cY) {
-		vec4 wVertex = vec4(cX, cY, 0, 1) * camera.Pinv() * camera.Vinv();
-		wCtrlPoints.push_back(wVertex);
+		vec4 calculated = vec4(cX, cY, 0, 1) * camera.ProjectionInverz() * camera.ViewInverz();
+		wCP.push_back(calculated);
 	}
 
-
-
-
-
-
-	// Returns the selected control point or -1
 	int PickControlPoint(float cX, float cY) {
-		vec4 wVertex = vec4(cX, cY, 0, 1) * camera.Pinv() * camera.Vinv();
-		for (unsigned int p = 0; p < wCtrlPoints.size(); p++) {
-			if (dot(wCtrlPoints[p] - wVertex, wCtrlPoints[p] - wVertex) < 0.1) return p;
+		vec4 calculated = vec4(cX, cY, 0, 1) * camera.ProjectionInverz() * camera.ViewInverz();
+		for (unsigned int p = 0; p < wCP.size(); p++) {
+			if (dot(wCP[p] - calculated, wCP[p] - calculated) < 0.1) return p;
 		}
 		return -1;
 	}
 
 	void MoveControlPoint(int p, float cX, float cY) {
-		vec4 wVertex = vec4(cX, cY, 0, 1) * camera.Pinv() * camera.Vinv();
-		wCtrlPoints[p] = wVertex;
+		vec4 calculated = vec4(cX, cY, 0, 1) * camera.ProjectionInverz() * camera.ViewInverz();
+		wCP[p] = calculated;
 	}
 
 	void Draw() {
-		mat4 VPTransform = camera.V() * camera.P();
+		mat4 VPTransform = camera.View() * camera.Projection();
 
 		gpuProgram.setUniform(VPTransform, "MVP");
 
@@ -231,25 +230,24 @@ public:
 
 
 
-		if (wCtrlPoints.size() > 0) {	// draw control points
+		if (wCP.size() > 0) {	
 			glBindVertexArray(vaoCtrlPoints);
 			glBindBuffer(GL_ARRAY_BUFFER, vboCtrlPoints);
-			glBufferData(GL_ARRAY_BUFFER, wCtrlPoints.size() * 4 * sizeof(float), &wCtrlPoints[0], GL_DYNAMIC_DRAW);
+			glBufferData(GL_ARRAY_BUFFER, wCP.size() * 4 * sizeof(float), &wCP[0], GL_DYNAMIC_DRAW);
 			if (colorLocation >= 0) glUniform3f(colorLocation, 1, 0, 0);
 			glPointSize(10.0f);
-			glDrawArrays(GL_POINTS, 0, wCtrlPoints.size());
+			glDrawArrays(GL_POINTS, 0, wCP.size());
 		}
 
-		if (wCtrlPoints.size() >= 2) {	// draw curve
+		if (wCP.size() >= 2) {	
 			std::vector<float> vertexData;
-			for (int i = 0; i < nTesselatedVertices; i++) {	// Tessellate
+			for (int i = 0; i < nTesselatedVertices; i++) {	
 				float tNormalized = (float)i / (nTesselatedVertices - 1);
 				float t = tStart() + (tEnd() - tStart()) * tNormalized;
 				vec4 wVertex = r(t);
 				vertexData.push_back(wVertex.x);
 				vertexData.push_back(wVertex.y);
 			}
-			// copy data to the GPU
 			glBindVertexArray(vaoCurve);
 			glBindBuffer(GL_ARRAY_BUFFER, vboCurve);
 			glBufferData(GL_ARRAY_BUFFER, vertexData.size() * sizeof(float), &vertexData[0], GL_DYNAMIC_DRAW);
@@ -260,10 +258,9 @@ public:
 	}
 };
 
-// Bezier using Bernstein polynomials
 class BezierCurve : public Curve {
 	float B(int i, float t) {
-		int n = wCtrlPoints.size() - 1; // n deg polynomial = n+1 pts!
+		int n = wCP.size() - 1; 
 		float choose = 1;
 		for (int j = 1; j <= i; j++) choose *= (float)(n - j + 1) / j;
 		return choose * pow(t, i) * pow(1 - t, n - i);
@@ -271,31 +268,41 @@ class BezierCurve : public Curve {
 public:
 	virtual vec4 r(float t) {
 		vec4 wPoint = vec4(0, 0, 0, 0);
-		for (unsigned int n = 0; n < wCtrlPoints.size(); n++) wPoint += wCtrlPoints[n] * B(n, t);
+		for (unsigned int n = 0; n < wCP.size(); n++) wPoint += wCP[n] * B(n, t);
 		return wPoint;
 	}
 };
 
-// Lagrange curve
+
 class LagrangeCurve : public Curve {
-	std::vector<float> ts;  // knots
+	std::vector<float> ts;  
 	float L(int i, float t) {
 		float Li = 1.0f;
-		for (unsigned int j = 0; j < wCtrlPoints.size(); j++)
-			if (j != i) Li *= (t - ts[j]) / (ts[i] - ts[j]);
+		for (unsigned int j = 0; j < wCP.size(); j++)
+			if ((int)j != i) Li *= (t - ts[j]) / (ts[i] - ts[j]);
 		return Li;
 	}
+
+
 public:
-	void AddControlPoint(float cX, float cY) {
-		ts.push_back((float)wCtrlPoints.size());
+	void AddControlPoint(float cX, float cY) override {
+		if (wCP.size() > 0) {
+			float lastKnot = ts.back();
+			float newKnot = lastKnot + distanceBetweenPoints(wCP.back(), vec4(cX, cY, 0, 1));
+			ts.push_back(newKnot);
+		}
+		else {
+			ts.push_back(0.0f);
+		}
 		Curve::AddControlPoint(cX, cY);
 	}
+
 	float tStart() { return ts[0]; }
-	float tEnd() { return ts[wCtrlPoints.size() - 1]; }
+	float tEnd() { return ts[wCP.size() - 1]; }
 
 	virtual vec4 r(float t) {
 		vec4 wPoint = vec4(0, 0, 0, 0);
-		for (unsigned int n = 0; n < wCtrlPoints.size(); n++) wPoint += wCtrlPoints[n] * L(n, t);
+		for (unsigned int n = 0; n < wCP.size(); n++) wPoint += wCP[n] * L(n, t);
 		return wPoint;
 	}
 };
@@ -303,7 +310,7 @@ public:
 float tension = 0;
 
 
-class CatmullRom : public Curve {
+class CatmullRomCurve : public Curve {
 private:
 	std::vector<float> ts;
 
@@ -318,24 +325,17 @@ private:
 
 		return a0 + a1 * t1_ + a2 * t2 + a3 * t3;
 	}
-	float distanceBetweenPoints(const vec4& p1, const vec4& p2) {
-		float dx = p2.x - p1.x;
-		float dy = p2.y - p1.y;
-		float dz = p2.z - p1.z;
-		float dw = p2.w - p1.w;
-
-		return sqrt(dx * dx + dy * dy + dz * dz + dw * dw);
-	}
+	
 
 
 public:
 	float tStart() override { return ts[0]; }
-	float tEnd() override { return ts[wCtrlPoints.size() - 1]; }
+	float tEnd() override { return ts[wCP.size() - 1]; }
 
 	void AddControlPoint(float cX, float cY) override {
-		if (wCtrlPoints.size() > 0) {
+		if (wCP.size() > 0) {
 			float lastKnot = ts.back();
-			float newKnot = lastKnot + distanceBetweenPoints(wCtrlPoints.back(), vec4(cX, cY, 0, 1));
+			float newKnot = lastKnot + distanceBetweenPoints(wCP.back(), vec4(cX, cY, 0, 1));
 			ts.push_back(newKnot);
 		}
 		else {
@@ -347,28 +347,28 @@ public:
 
 
 	vec4 r(float t) override {
-		for (int i = 0; i < wCtrlPoints.size() - 1; i++) {
+		for (unsigned int i = 0; i < wCP.size() - 1; i++) {
 			if (ts[i] <= t && t <= ts[i + 1]) {
-				int startI = i; int endI = i + 1;
+				unsigned int startI = i; unsigned int endI = i + 1;
 				vec4 v0; vec4 v1;
 
-				if (startI == 0 || startI == wCtrlPoints.size() - 1) {
+				if (startI == 0 || startI == wCP.size() - 1) {
 					v0 = vec4(0, 0, 0, 0);
 				}
 				else {
-					v0 = 0.5 * (1 - tension) * (((wCtrlPoints[startI + 1] - wCtrlPoints[startI]) /
-						(ts[startI + 1] - ts[startI])) + (wCtrlPoints[startI] - wCtrlPoints[startI - 1]) / (ts[startI] - ts[startI - 1]));
+					v0 = 0.5 * (1 - tension) * (((wCP[startI + 1] - wCP[startI]) /
+						(ts[startI + 1] - ts[startI])) + (wCP[startI] - wCP[startI - 1]) / (ts[startI] - ts[startI - 1]));
 				}
 
-				if (endI == 0 || endI == wCtrlPoints.size() - 1) {
+				if (endI == 0 || endI == wCP.size() - 1) {
 					v1 = vec4(0, 0, 0, 0);
 				}
 				else {
-					v1 = 0.5 * (1 - tension) * (((wCtrlPoints[endI + 1] - wCtrlPoints[endI]) /
-						(ts[endI + 1] - ts[endI])) + (wCtrlPoints[endI] - wCtrlPoints[endI - 1]) / (ts[endI] - ts[endI - 1]));
+					v1 = 0.5 * (1 - tension) * (((wCP[endI + 1] - wCP[endI]) /
+						(ts[endI + 1] - ts[endI])) + (wCP[endI] - wCP[endI - 1]) / (ts[endI] - ts[endI - 1]));
 				}
 
-				return vec4(Hermite(wCtrlPoints[startI], v0, ts[startI], wCtrlPoints[endI], v1, ts[endI], t));
+				return vec4(Hermite(wCP[startI], v0, ts[startI], wCP[endI], v1, ts[endI], t));
 			}
 		}
 		return vec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -383,24 +383,21 @@ Curve* curve;
 
 
 
-// Initialization, create an OpenGL context
 void onInitialization() {
 	glViewport(0, 0, windowWidth, windowHeight);
 	glLineWidth(2.0f);
 
 	curve = new Curve();
 
-	// create program for the GPU
 	gpuProgram.create(vertexSource, fragmentSource, "outColor");
 }
 
-// Window has become invalid: Redraw
 void onDisplay() {
-	glClearColor(0, 0, 0, 0);							// background color 
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the screen
+	glClearColor(0, 0, 0, 0);							
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
 
 	curve->Draw();
-	glutSwapBuffers();									// exchange the two buffers
+	glutSwapBuffers();									
 }
 
 // Key of ASCII code pressed
@@ -412,15 +409,13 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 		curve = new BezierCurve();
 	}
 	else if (key == 'c') {
-		curve = new CatmullRom();
+		curve = new CatmullRomCurve();
 	}
 	else if (key == 'Z') {
-		currentZoom = 2;
-		camera.Zoom(currentZoom);
+		camera.ZoomOut();
 	}
 	else if (key == 'z') {
-		currentZoom = 0;
-		camera.Zoom(currentZoom);
+		camera.ZoomIn();
 
 	}
 	else if (key == 'P') {
@@ -439,43 +434,39 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 	glutPostRedisplay();
 }
 
-// Key of ASCII code released
 void onKeyboardUp(unsigned char key, int pX, int pY) {
 
 }
 
 int pickedControlPoint = -1;
 
-// Mouse click event
+
 void onMouse(int button, int state, int pX, int pY) {
-	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {  // GLUT_LEFT_BUTTON / GLUT_RIGHT_BUTTON and GLUT_DOWN / GLUT_UP
-		float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
-		float cY = 1.0f - 2.0f * pY / windowHeight;
+	float cX = 2.0f * pX / windowWidth - 1;
+	float cY = 1.0f - 2.0f * pY / windowHeight;
+	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) { 
 		vec2 worldCoords = camera.ScreenToWorld(pX, pY, windowWidth, windowHeight);
 
 		curve->AddControlPoint(worldCoords.x, worldCoords.y);
-		glutPostRedisplay();     // redraw
+		glutPostRedisplay();     
 	}
-	if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {  // GLUT_LEFT_BUTTON / GLUT_RIGHT_BUTTON and GLUT_DOWN / GLUT_UP
-		float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
-		float cY = 1.0f - 2.0f * pY / windowHeight;
+	if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {  
 		pickedControlPoint = curve->PickControlPoint(cX, cY);
-		glutPostRedisplay();     // redraw
+		glutPostRedisplay();     
 	}
-	if (button == GLUT_RIGHT_BUTTON && state == GLUT_UP) {  // GLUT_LEFT_BUTTON / GLUT_RIGHT_BUTTON and GLUT_DOWN / GLUT_UP
+	if (button == GLUT_RIGHT_BUTTON && state == GLUT_UP) { 
 		pickedControlPoint = -1;
 	}
 }
 
-// Move mouse with key pressed
+
 void onMouseMotion(int pX, int pY) {
 	float cX = 2.0f * pX / windowWidth - 1;
 	float cY = 1.0f - 2.0f * pY / windowHeight;
 	if (pickedControlPoint >= 0) curve->MoveControlPoint(pickedControlPoint, cX, cY);
 }
 
-// Idle event indicating that some time elapsed: do animation here
 void onIdle() {
-	long time = glutGet(GLUT_ELAPSED_TIME); // elapsed time since the start of the program		
+	//long time = glutGet(GLUT_ELAPSED_TIME);
 	glutPostRedisplay();
 }
