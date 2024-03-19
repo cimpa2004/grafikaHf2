@@ -107,8 +107,8 @@ public:
 	void Animate(float t) {
 		wCx = 0; // 10 * cosf(t);
 		wCy = 0;
-		wWx = 20;
-		wWy = 20;
+		wWx = 30;
+		wWy = 30;
 	}
 
 	vec2 ScreenToWorld(float x, float y, int windowWidth, int windowHeight) {
@@ -204,7 +204,7 @@ public:
 		wCtrlPoints.push_back(wVertex);
 	}
 
-	
+
 
 
 
@@ -307,7 +307,7 @@ float tension = 0;
 class CatmullRom : public Curve {
 private:
 	std::vector<float> ts;
-	std::vector<vec4> cps;
+	//std::vector<vec4> cps;
 
 	vec4 Hermite(vec4 p0, vec4 v0, float t0, vec4 p1, vec4 v1, float t1, float t) {
 		float t1_ = t - t0;
@@ -328,7 +328,7 @@ private:
 		float dw = p2.w - p1.w;
 
 		// Return the square root of the sum of squared differences
-		return sqrt(dx * dx + dy * dy + dz * dz + dw*dw);
+		return sqrt(dx * dx + dy * dy + dz * dz + dw * dw);
 	}
 
 
@@ -336,46 +336,46 @@ public:
 	float tStart() { return ts[0]; }
 	float tEnd() { return ts[wCtrlPoints.size() - 1]; }
 
-	void AddControlPoint(float cX, float cY) {
+	void AddControlPoint(float cX, float cY) override {
 		if (wCtrlPoints.size() > 0) {
 			float lastKnot = ts.back();
-			float newKnot = lastKnot + distanceBetweenPoints(cps.back(), vec4(cX, cY, 0,1));
+			float newKnot = lastKnot + distanceBetweenPoints(wCtrlPoints.back(), vec4(cX, cY, 0, 1));
 			ts.push_back(newKnot);
 		}
 		else {
-			ts.push_back(0.0f); // Start knot at 0
+			ts.push_back(0.0f); 
 		}
 		vec4 wVertex = vec4(cX, cY, 0, 1) * camera.Pinv() * camera.Vinv();
 
-		cps.push_back(wVertex);
+		wCtrlPoints.push_back(wVertex);
 		Curve::AddControlPoint(cX, cY);
 	}
 
-	
 
-	virtual vec4 r(float t) override {
-		for (int i = 0; i < cps.size() - 1; i++) {
+
+	virtual vec4 r(float t) {
+		for (int i = 0; i < wCtrlPoints.size() - 1; i++) {
 			if (ts[i] <= t && t <= ts[i + 1]) {
 				int startI = i; int endI = i + 1;
 				vec4 v0; vec4 v1;
 
-				if (startI == 0 || startI == cps.size() - 1) {
-					v0 = vec4(0, 0, 0,0);
+				if (startI == 0 || startI == wCtrlPoints.size() - 1) {
+					v0 = vec4(0, 0, 0, 0);
 				}
 				else {
-					v0 = 0.5 * (1 - tension) * (((cps[startI + 1] - cps[startI]) /
-						(ts[startI + 1] - ts[startI])) + (cps[startI] - cps[startI - 1]) / (ts[startI] - ts[startI - 1]));
+					v0 = 0.5 * (1 - tension) * (((wCtrlPoints[startI + 1] - wCtrlPoints[startI]) /
+						(ts[startI + 1] - ts[startI])) + (wCtrlPoints[startI] - wCtrlPoints[startI - 1]) / (ts[startI] - ts[startI - 1]));
 				}
 
-				if (endI == 0 || endI == cps.size() - 1) {
-					v1 = vec4(0, 0, 0,0);
+				if (endI == 0 || endI == wCtrlPoints.size() - 1) {
+					v1 = vec4(0, 0, 0, 0);
 				}
 				else {
-					v1 = 0.5 * (1 - tension) * (((cps[endI + 1] - cps[endI]) /
-						(ts[endI + 1] - ts[endI])) + (cps[endI] - cps[endI - 1]) / (ts[endI] - ts[endI - 1]));
+					v1 = 0.5 * (1 - tension) * (((wCtrlPoints[endI + 1] - wCtrlPoints[endI]) /
+						(ts[endI + 1] - ts[endI])) + (wCtrlPoints[endI] - wCtrlPoints[endI - 1]) / (ts[endI] - ts[endI - 1]));
 				}
 
-				return vec4(Hermite(cps[startI], v0, ts[startI], cps[endI], v1, ts[endI], t));
+				return vec4(Hermite(wCtrlPoints[startI], v0, ts[startI], wCtrlPoints[endI], v1, ts[endI], t));
 			}
 		}
 		return vec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -431,10 +431,10 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 
 	}
 	else if (key == 'P') {
-		camera.PanRight();
+		camera.PanLeft();
 	}
 	else if (key == 'p') {
-		camera.PanLeft();
+		camera.PanRight();
 	}
 	else if (key == 'T') {
 		tension += 0.1f;
