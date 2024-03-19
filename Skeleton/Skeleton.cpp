@@ -128,20 +128,20 @@ public:
 
 	void Zoom(float zoom) {
 		float converted = 1;
-		if (zoom == 1){
+		if (zoom == 1) {
 			return;
 		}
 		else if (zoom < 1) {
 			converted = 0.9f;
 		}
-		else if ( zoom > 1) {
+		else if (zoom > 1) {
 			converted = 1.1f;
 		}
 		wCx *= converted;
 		wCy *= converted;
 		wWx *= converted;
 		wWy *= converted;
-		
+
 	}
 
 	void PanLeft() {
@@ -203,7 +203,9 @@ public:
 		vec4 wVertex = vec4(cX, cY, 0, 1) * camera.Pinv() * camera.Vinv();
 		wCtrlPoints.push_back(wVertex);
 	}
+
 	
+
 
 
 
@@ -228,7 +230,7 @@ public:
 
 		int colorLocation = glGetUniformLocation(gpuProgram.getId(), "color");
 
-		
+
 
 		if (wCtrlPoints.size() > 0) {	// draw control points
 			glBindVertexArray(vaoCtrlPoints);
@@ -305,59 +307,75 @@ float tension = 0;
 class CatmullRom : public Curve {
 private:
 	std::vector<float> ts;
-	std::vector<vec3> cps;
+	std::vector<vec4> cps;
 
-	vec3 Hermite(vec3 p0, vec3 v0, float t0, vec3 p1, vec3 v1, float t1, float t) {
+	vec4 Hermite(vec4 p0, vec4 v0, float t0, vec4 p1, vec4 v1, float t1, float t) {
 		float t1_ = t - t0;
 		float t2 = (t - t0) * (t - t0);
 		float t3 = (t - t0) * (t - t0) * (t - t0);
-		vec3 a0 = p0;
-		vec3 a1 = v0;
-		vec3 a2 = (3.0f * (p1 - p0) / ((t1 - t0) * (t1 - t0))) - (2.0f * v0 + v1) / (t1 - t0);
-		vec3 a3 = (2.0f * (p0 - p1) / ((t1 - t0) * (t1 - t0) * (t1 - t0))) + (v0 + v1) / ((t1 - t0) * (t1 - t0));
+		vec4 a0 = p0;
+		vec4 a1 = v0;
+		vec4 a2 = (3.0f * (p1 - p0) / ((t1 - t0) * (t1 - t0))) - (2.0f * v0 + v1) / (t1 - t0);
+		vec4 a3 = (2.0f * (p0 - p1) / ((t1 - t0) * (t1 - t0) * (t1 - t0))) + (v0 + v1) / ((t1 - t0) * (t1 - t0));
 
 		return a0 + a1 * t1_ + a2 * t2 + a3 * t3;
 	}
+	float distanceBetweenPoints(const vec4& p1, const vec4& p2) {
+		// Calculate the squared differences in each dimension
+		float dx = p2.x - p1.x;
+		float dy = p2.y - p1.y;
+		float dz = p2.z - p1.z;
+		float dw = p2.w - p1.w;
 
+		// Return the square root of the sum of squared differences
+		return sqrt(dx * dx + dy * dy + dz * dz + dw*dw);
+	}
 
 
 public:
 	float tStart() { return ts[0]; }
-	float tEnd() { return ts[wCtrlPoints.size() -1 ]; }
+	float tEnd() { return ts[wCtrlPoints.size() - 1]; }
 
 	void AddControlPoint(float cX, float cY) {
-		ts.push_back((float)wCtrlPoints.size());
-		cps.push_back(vec3(cX, cY, 1));
+		if (wCtrlPoints.size() > 0) {
+			float lastKnot = ts.back();
+			float newKnot = lastKnot + distanceBetweenPoints(cps.back(), vec4(cX, cY, 0,1));
+			ts.push_back(newKnot);
+		}
+		else {
+			ts.push_back(0.0f); // Start knot at 0
+		}
+		vec4 wVertex = vec4(cX, cY, 0, 1) * camera.Pinv() * camera.Vinv();
+
+		cps.push_back(wVertex);
 		Curve::AddControlPoint(cX, cY);
 	}
 
+	
+
 	virtual vec4 r(float t) override {
 		for (int i = 0; i < cps.size() - 1; i++) {
-			if (ts[i] <= t &&  t <= ts[i + 1]) {
+			if (ts[i] <= t && t <= ts[i + 1]) {
 				int startI = i; int endI = i + 1;
-				vec3 v0; vec3 v1;
+				vec4 v0; vec4 v1;
 
-				if (startI == 0) {
-					v0 = vec3(0, 0, 0);
-					printf("AAAAAAAAAAAAAAAAAAAAAAAA   %d \n", startI);
+				if (startI == 0 || startI == cps.size() - 1) {
+					v0 = vec4(0, 0, 0,0);
 				}
 				else {
 					v0 = 0.5 * (1 - tension) * (((cps[startI + 1] - cps[startI]) /
 						(ts[startI + 1] - ts[startI])) + (cps[startI] - cps[startI - 1]) / (ts[startI] - ts[startI - 1]));
 				}
-					
-				if (endI == cps.size() -1 ) {
-					v1 = vec3(0, 0, 0);
-					printf("BBBBBBBBBBBBBBBBBBBBBBBBBB  %d \n", endI);
-					
+
+				if (endI == 0 || endI == cps.size() - 1) {
+					v1 = vec4(0, 0, 0,0);
 				}
 				else {
 					v1 = 0.5 * (1 - tension) * (((cps[endI + 1] - cps[endI]) /
 						(ts[endI + 1] - ts[endI])) + (cps[endI] - cps[endI - 1]) / (ts[endI] - ts[endI - 1]));
 				}
 
-				vec3 temp = Hermite(cps[startI], v0, ts[startI], cps[endI], v1, ts[endI], t);
-				return vec4(temp.x, temp.y, temp.z, 1);
+				return vec4(Hermite(cps[startI], v0, ts[startI], cps[endI], v1, ts[endI], t));
 			}
 		}
 		return vec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -394,7 +412,7 @@ void onDisplay() {
 
 // Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
-	if (key == 'l'){
+	if (key == 'l') {
 		curve = new LagrangeCurve();
 	}
 	else if (key == 'b') {
@@ -458,7 +476,7 @@ void onMouse(int button, int state, int pX, int pY) {
 
 // Move mouse with key pressed
 void onMouseMotion(int pX, int pY) {
-	float cX = 2.0f * pX / windowWidth - 1;	
+	float cX = 2.0f * pX / windowWidth - 1;
 	float cY = 1.0f - 2.0f * pY / windowHeight;
 	if (pickedControlPoint >= 0) curve->MoveControlPoint(pickedControlPoint, cX, cY);
 }
