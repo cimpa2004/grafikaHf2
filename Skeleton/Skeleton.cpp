@@ -32,6 +32,11 @@
 // negativ elojellel szamoljak el es ezzel parhuzamosan eljaras is indul velem szemben.
 //=============================================================================================
 
+//A kod nagy része megegyezik vagy épít a https://cg.iit.bme.hu/portal/oktatott-targyak/szamitogepes-grafika-es-kepfeldolgozas/geometriai-modellezes 
+//linken talalhato kodokra
+//ennek nagy része megtalálható az elõadásdiákban és ez egy tárgyhoz kapcsolódó oldal 
+//(ezek alapján nem vagyok benne biztos hogy ezt meg kell jelölni)
+
 
 #include "framework.h"
 
@@ -71,17 +76,20 @@ struct Camera {
 	float wWx, wWy;	// width and height in world coordinates
 public:
 	Camera() {
-		Animate(0);
+		wCx = 0; 
+		wCy = 0;
+		wWx = 30;
+		wWy = 30;
 	}
 
-	mat4 V() { // view matrix: translates the center to the origin
+	mat4 V() { 
 		return mat4(1, 0, 0, 0,
 			0, 1, 0, 0,
 			0, 0, 1, 0,
 			-wCx, -wCy, 0, 1);
 	}
 
-	mat4 P() { // projection matrix: scales it to be a square of edge length 2
+	mat4 P() { 
 		return mat4(2 / wWx, 0, 0, 0,
 			0, 2 / wWy, 0, 0,
 			0, 0, 1, 0,
@@ -89,7 +97,7 @@ public:
 	}
 
 
-	mat4 Vinv() { // inverse view matrix
+	mat4 Vinv() { 
 		return mat4(1, 0, 0, 0,
 			0, 1, 0, 0,
 			0, 0, 1, 0,
@@ -97,19 +105,14 @@ public:
 	}
 
 
-	mat4 Pinv() { // inverse projection matrix
+	mat4 Pinv() { 
 		return mat4(wWx / 2, 0, 0, 0,
 			0, wWy / 2, 0, 0,
 			0, 0, 1, 0,
 			0, 0, 0, 1);
 	}
 
-	void Animate(float t) {
-		wCx = 0; // 10 * cosf(t);
-		wCy = 0;
-		wWx = 30;
-		wWy = 30;
-	}
+	
 
 	vec2 ScreenToWorld(float x, float y, int windowWidth, int windowHeight) {
 		float ndcX = 2.0f * x / windowWidth - 1.0f;
@@ -157,9 +160,9 @@ public:
 };
 
 
-Camera camera;	// 2D camera
+Camera camera;	
 
-GPUProgram gpuProgram; // vertex and fragment shaders
+GPUProgram gpuProgram; 
 const int nTesselatedVertices = 100;
 float currentZoom = 1;
 
@@ -167,21 +170,17 @@ class Curve {
 	unsigned int vaoCurve, vboCurve;
 	unsigned int vaoCtrlPoints, vboCtrlPoints;
 protected:
-	std::vector<vec4> wCtrlPoints;		// coordinates of control points
+	std::vector<vec4> wCtrlPoints;		
 public:
 	Curve() {
 		// Curve
 		glGenVertexArrays(1, &vaoCurve);
 		glBindVertexArray(vaoCurve);
 
-		glGenBuffers(1, &vboCurve); // Generate 1 vertex buffer object
+		glGenBuffers(1, &vboCurve); 
 		glBindBuffer(GL_ARRAY_BUFFER, vboCurve);
-		// Enable the vertex attribute arrays
-		glEnableVertexAttribArray(0);  // attribute array 0
-		// Map attribute array 0 to the vertex data of the interleaved vbo
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), NULL); // attribute array, components/attribute, component type, normalize?, stride, offset
-
-		// Control Points
+		glEnableVertexAttribArray(0); 
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), NULL);
 		glGenVertexArrays(1, &vaoCtrlPoints);
 		glBindVertexArray(vaoCtrlPoints);
 
@@ -307,7 +306,6 @@ float tension = 0;
 class CatmullRom : public Curve {
 private:
 	std::vector<float> ts;
-	//std::vector<vec4> cps;
 
 	vec4 Hermite(vec4 p0, vec4 v0, float t0, vec4 p1, vec4 v1, float t1, float t) {
 		float t1_ = t - t0;
@@ -321,20 +319,18 @@ private:
 		return a0 + a1 * t1_ + a2 * t2 + a3 * t3;
 	}
 	float distanceBetweenPoints(const vec4& p1, const vec4& p2) {
-		// Calculate the squared differences in each dimension
 		float dx = p2.x - p1.x;
 		float dy = p2.y - p1.y;
 		float dz = p2.z - p1.z;
 		float dw = p2.w - p1.w;
 
-		// Return the square root of the sum of squared differences
 		return sqrt(dx * dx + dy * dy + dz * dz + dw * dw);
 	}
 
 
 public:
-	float tStart() { return ts[0]; }
-	float tEnd() { return ts[wCtrlPoints.size() - 1]; }
+	float tStart() override { return ts[0]; }
+	float tEnd() override { return ts[wCtrlPoints.size() - 1]; }
 
 	void AddControlPoint(float cX, float cY) override {
 		if (wCtrlPoints.size() > 0) {
@@ -345,15 +341,12 @@ public:
 		else {
 			ts.push_back(0.0f); 
 		}
-		vec4 wVertex = vec4(cX, cY, 0, 1) * camera.Pinv() * camera.Vinv();
-
-		wCtrlPoints.push_back(wVertex);
 		Curve::AddControlPoint(cX, cY);
 	}
 
 
 
-	virtual vec4 r(float t) {
+	vec4 r(float t) override {
 		for (int i = 0; i < wCtrlPoints.size() - 1; i++) {
 			if (ts[i] <= t && t <= ts[i + 1]) {
 				int startI = i; int endI = i + 1;
