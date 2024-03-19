@@ -267,7 +267,7 @@ class BezierCurve : public Curve {
 	}
 public:
 	virtual vec4 r(float t) {
-		vec4 wPoint = vec4(0, 0, 0, 0);
+		vec4 wPoint = vec4(0, 0, 0, 1);
 		for (unsigned int n = 0; n < wCP.size(); n++) wPoint += wCP[n] * B(n, t);
 		return wPoint;
 	}
@@ -419,10 +419,10 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 
 	}
 	else if (key == 'P') {
-		camera.PanLeft();
+		camera.PanRight();
 	}
 	else if (key == 'p') {
-		camera.PanRight();
+		camera.PanLeft();
 	}
 	else if (key == 'T') {
 		tension += 0.1f;
