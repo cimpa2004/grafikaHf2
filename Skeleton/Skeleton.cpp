@@ -176,7 +176,7 @@ protected:
 		float dz = p2.z - p1.z;
 		float dw = p2.w - p1.w;
 
-		return sqrt(dx * dx + dy * dy + dz * dz + dw * dw);
+		return sqrt(dx * dx + dy * dy);
 	}
 public:
 	Curve() {
@@ -286,16 +286,36 @@ class LagrangeCurve : public Curve {
 
 public:
 	void AddControlPoint(float cX, float cY) override {
-		if (wCP.size() > 0) {
-			float lastKnot = ts.back();
-			float newKnot = lastKnot + distanceBetweenPoints(wCP.back(), vec4(cX, cY, 0, 1));
-			ts.push_back(newKnot);
-		}
-		else {
-			ts.push_back(0.0f);
-		}
 		Curve::AddControlPoint(cX, cY);
+		HandleTs();
 	}
+
+	void HandleTs() {
+		float totalDistance = 0.0f;
+		ts.clear();
+		ts.push_back(0.0f);
+
+		for (int i = 1; i < wCP.size(); ++i) {
+			float distance = sqrtf(pow(wCP[i].x - wCP[i - 1].x, 2.0f) +
+				pow(wCP[i].y - wCP[i - 1].y, 2.0f));
+			totalDistance += distance;
+		}
+
+		for (int i = 1; i < wCP.size(); ++i) {
+			float distance = sqrtf(pow(wCP[i].x - wCP[i - 1].x, 2.0f) +
+				pow(wCP[i].y - wCP[i - 1].y, 2.0f));
+			ts.push_back(distance / totalDistance);
+		}
+
+		for (int i = 1; i < ts.size(); ++i) {
+			ts[i] += ts[i - 1];
+		}
+		ts[ts.size() - 1] = 1.0f;
+		for (int i = 0; i < ts.size(); i++) {
+			printf("%f\n", ts[i]);
+		}
+	}
+
 
 	float tStart() { return ts[0]; }
 	float tEnd() { return ts[wCP.size() - 1]; }
@@ -333,19 +353,36 @@ public:
 	float tEnd() override { return ts[wCP.size() - 1]; }
 
 	void AddControlPoint(float cX, float cY) override {
-		if (wCP.size() > 0) {
-			float lastKnot = ts.back();
-			float newKnot = lastKnot + distanceBetweenPoints(wCP.back(), vec4(cX, cY, 0, 1));
-			ts.push_back(newKnot);
-		}
-		else {
-			ts.push_back(0.0f);
-		}
 		Curve::AddControlPoint(cX, cY);
+		HandleTs();
 	}
 
 
+	void HandleTs() {
+		float totalDistance = 0.0f;
+		ts.clear();
+		ts.push_back(0.0f); 
 
+		for (int i = 1; i < wCP.size(); ++i) {
+			float distance = sqrtf(pow(wCP[i].x - wCP[i - 1].x, 2.0f) +
+				pow(wCP[i].y - wCP[i - 1].y, 2.0f));
+			totalDistance += distance;
+		}
+
+		for (int i = 1; i < wCP.size(); ++i) {
+			float distance = sqrtf(pow(wCP[i].x - wCP[i - 1].x, 2.0f) +
+				pow(wCP[i].y - wCP[i - 1].y, 2.0f));
+			ts.push_back(distance / totalDistance);
+		}
+
+		for (int i = 1; i < ts.size(); ++i) {
+			ts[i] += ts[i - 1];
+		}
+		ts[ts.size() - 1] = 1.0f;
+		/*for (int i = 0; i < ts.size(); i++){
+			printf("%f\n", ts[i]);
+		}*/
+	}
 
 
 	vec4 r(float t) override {
